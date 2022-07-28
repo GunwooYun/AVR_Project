@@ -9,6 +9,8 @@
 #define BAUDRATE_9600 95 // baud rate : 9600
 #define NUM_OF_CUSTOMER 5 // number of customers
 #define NUM_OF_PRODUCT 5 // number of products
+#define UART 1 // Way to send
+#define BLUETOOTH 2 // Way to send
 
 #include <avr/io.h>
 #include <util/delay.h>
@@ -34,27 +36,21 @@ struct product{
 struct customer csArray[NUM_OF_CUSTOMER];
 struct product pArray[NUM_OF_PRODUCT];
 
-/*
-int price[PRODUCT] = {0, 1500, 4000, 1700, 2500};
-char* productArr[PRODUCT] = {"N/A", "drink", "cigar", "snack", "coffee"};
-int stockArr[PRODUCT] = {10, 4, 21, 4, 9};
-char* ageArr[PRODUCT] = {"0", "0", "19", "0", "15"};
-	*/
-
 void UART0_transmit(uint8_t token);
 uint8_t UART0_receive(void);
 
-//void calBalance(int index, int pIndex); //잔액계산
-char checkCard(char* cn); // 카드번호 탐색
-/*
-char* getCusInfo(int index); // 고객정보 리턴
-char* getProInfo(int index); // 상품정보 리턴
-char* getBleInfo(int index); // 블루투스 전송용 고객정보 리턴
-char* getBleStock(int index); // 블루투스 전송용 재고 리턴
-void sendInfo(char* info, int a); // 시리얼 전송
-*/
-void dataInit(); // 고객정보 초기화
+uint8_t checkCard(char* cn); // 카드번호 탐색
 
+void sendInfo(char* info, uint8_t mode); // UART 또는 블루투스로 정보 전송
+
+char* getCusInfo(uint8_t index); // 고객정보 리턴
+char* getBleInfo(uint8_t index); // 블루투스 전송용 고객정보 리턴
+char* getProInfo(uint8_t index); // 상품정보 리턴
+char* getBleStock(uint8_t index); // 블루투스 전송용 재고 리턴
+
+void calBalance(uint8_t index, uint8_t pIndex); //잔액계산
+
+void dataInit(); // 고객정보 초기화
 
 int main(void)
 {
@@ -65,9 +61,8 @@ int main(void)
 	
 	uint8_t cardToken; // 수신받은 문자
 	char cardNum[30] = {0}; // 수신받은 카드 번호
-	char* chkChar;
-	uint8_t cardIdx;
-	char csIndex;
+	uint8_t cardIdx; // 카드조회 인덱스
+	uint8_t csIndex; // 고객정보 배열 인덱스
 	
 	dataInit(); // 고객정보 초기화
     /* Replace with your application code */
@@ -84,57 +79,90 @@ int main(void)
 				break;
 				}
 		}
-		
+		/* 고객 정보 조회 및 전송 */
 		if(((strlen(cardNum) > 13) && (strlen(cardNum) < 20)) && (cardNum[0] == 'a')){
+			csIndex = checkCard(cardNum); // 카드번호로 고객 조회
 			
+			/* 카드번호 문자열 확인 */
+			/*
 			chkChar = cardNum;
 			while(*chkChar){
 				UART0_transmit(*chkChar);
 				chkChar++;
 			}
+			*/
 			
-			
-			csIndex = checkCard(cardNum);
-			UART0_transmit(csIndex);
+			/*
+			UART0_transmit(csIndex + '0'); // csIndex 확인
 			_delay_ms(1);
-			#if 0
+			chkCus = getCusInfo(csIndex);
+			while(*chkCus){
+				UART0_transmit(*chkCus);
+				chkCus++;
+			}
+			_delay_ms(1);
+			*/
+			#if 1
 			if(csIndex < 0){
-				printf("No Found customer");
+				/* 고객정보 조회 실패 */
 				sendInfo("1", 1);
 			}
 			else{
-				printf("Found customer --> index : %d\n", csIndex);
-				String cusInfoStr = getCusInfo(csIndex);
-				String cusInfoBle = getBleInfo(csIndex);
-				sendInfo(cusInfoStr,1);
-				sendInfo(cusInfoBle,2);
-			}
-			cardNum="";
+				/* 고객 정보 조회 성공 */
+				char* cusInfoStr = getCusInfo(csIndex);
+				if(cusInfoStr == NULL){
+					
+				}
+				char* cusInfoBle = getBleInfo(csIndex);
+				if(cusInfoBle == NULL){
+					
+				}
+				sendInfo(cusInfoStr,UART);
+				//sendInfo(cusInfoBle,BLUETOOTH);
+				
+				free(cusInfoStr);
+				free(cusInfoBle);
+			}			
 			#endif
 		}
-		memset(cardNum, 0, sizeof(cardNum));
+		//memset(cardNum, 0, sizeof(cardNum));
 		
-		#if 0
+		#if 1
+		/* 상품 정보 조회 및 전송 */
 		else if(cardNum[0] == 'c'){
 			int pIdx = cardNum[1]-'0';
-			String proInfoStr = getProInfo(pIdx);
-			String stoInfoStr = getBleStock(pIdx);
+			char* proInfoStr = getProInfo(pIdx);
+			if(proInfoStr == NULL){
+				// malloc 실패
+			}
+			char* stoInfoStr = getBleStock(pIdx);
+			if(stoInfoStr == NULL){
+				// malloc 실패
+			}
 			calBalance(csIndex, pIdx);
-			sendInfo(proInfoStr, 1);
-			sendInfo(stoInfoStr, 2);
-			cardNum="";
-		
-		
+			sendInfo(proInfoStr, UART);
+			sendInfo(stoInfoStr, UART);
 			
 		}
+		memset(cardNum, 0, sizeof(cardNum));
 		#endif
 		
     }
 }
 
+void Init_BLUETOOTH(void)
+{
+	DDRD = 0x08; // PORTD3 output
+	UCSR1A = 0x00;
+	UCSR1B = 0x98; // TXE, RXE Enable
+	UCSR1C = 0x06; // 비동기, Non Parity, 1 Stop Bit
+	UBRR1H = 0x00;
+	UBRR1L = 0x07; //115200 bps
+	DDRB = 0xff;
+}
+
 void UART0_transmit(uint8_t token)
 {
-	
 	while(1)
 	{
 		// empty : 1 & 1 -> 1
@@ -152,35 +180,92 @@ uint8_t UART0_receive(void)
 	return UDR0;
 }
 
-#if 0
+
 char* getCusInfo(uint8_t index)
 {
-	return "b "+csArray[index].cName+" "+csArray[index].cAge+" "+csArray[index].cBal;
+	char* pCusInfo;
+	pCusInfo = (char *)malloc(sizeof(char) * 30);
+	if(pCusInfo == NULL){
+		return NULL;
+	}
+	sprintf(pCusInfo, "b %s %d %d\n", csArray[index].cName, csArray[index].cAge, csArray[index].cBal);
+	return pCusInfo;
 }
-
-char* getProInfo(uint8_t index)
-{
-	return "d " + (String)productArr[index] + " " + (String)ageArr[index] + " " + (String)price[index];
-}
-
 char* getBleInfo(uint8_t index)
 {
-	return "Name: " + (String)csArray[index].cName + " Age : " + (String)csArray[index].cAge+"\n";
+	char* pBleInfo;
+	pBleInfo = (char *)malloc(sizeof(char) * 30);
+	if(pBleInfo == NULL){
+		return NULL;
+	}
+	sprintf(pBleInfo, "Name: %s Age : %d\n", csArray[index].cName, csArray[index].cAge);
+	return pBleInfo;
+	//return "Name: " + (String)csArray[index].cName + " Age : " + (String)csArray[index].cAge+"\n";
 }
+#if 1
+char* getProInfo(uint8_t index)
+{
+	char* pProInfo;
+	pProInfo = (char *)malloc(sizeof(char) * 30);
+	if(pProInfo == NULL){
+		return NULL;
+	}
+	sprintf(pProInfo, "d %s %d %d", pArray[index].pName, pArray[index].age, pArray[index].price);
+	return pProInfo;
+	//return "d " + (String)productArr[index] + " " + (String)ageArr[index] + " " + (String)price[index];
+}
+
+
 char* getBleStock(uint8_t index)
 {
-	return "ID: " + (String)productArr[index] + " Stock : " + (String)stockArr[index]+"\n";
+	char* pBleStock;
+	pBleStock = (char *)malloc(sizeof(char) * 30);
+	if(pBleStock == NULL){
+		return NULL;
+	}
+	sprintf(pBleStock, "ID: %s Stock : %d\n", pArray[index].pName, pArray[index].stock);
+	return pBleStock;
+	//return "ID: " + (String)productArr[index] + " Stock : " + (String)stockArr[index]+"\n";
 }
 
 #endif
-char checkCard(char* cn)
+
+uint8_t checkCard(char* cn)
 {
 	for(int i = 0; i < NUM_OF_CUSTOMER; i++)
 	{
 		if(!strcmp(csArray[i].cID, cn))
-		return 'O';
+		return 0;
 	}
-	return 'x';
+	return 1;
+}
+
+void sendInfo(char* info, uint8_t mode)
+{
+	char* sendToken;
+	if(mode == UART){
+		sendToken = info;
+		while(*sendToken){
+			UART0_transmit(*sendToken);
+			sendToken++;
+		}
+	}
+	else if(mode == BLUETOOTH)
+	{
+		
+	}
+}
+
+void calBalance(uint8_t index, uint8_t pIndex)
+{
+	if(csArray[index].cAge < pArray[pIndex].age)
+		return;
+	if(pArray[pIndex].stock <= 0) return;
+	int bal = csArray[index].cBal - pArray[pIndex].price;
+	if(bal > 0){
+		csArray[index].cBal = bal;
+		pArray[pIndex].stock--;
+	}
 }
 
 void dataInit()
@@ -193,28 +278,28 @@ void dataInit()
 	csArray[0].cAge = 21;
 	csArray[0].cBal = 10000;
 
-	strcpy(csArray[1].cID, "a211 153 231 17 \r\n");
+	strcpy(csArray[1].cID, "a211 153 231 17E");
 	strcpy(csArray[1].cName, "Jack");
 	//csArray[1].cID = "a211 153 231 17 \r\n";
 	//csArray[1].cName = "Jack";
 	csArray[1].cAge = 17;
 	csArray[1].cBal = 30000;
 
-	strcpy(csArray[2].cID, "a213 153 231 17 \r\n");
+	strcpy(csArray[2].cID, "a213 153 231 17E");
 	strcpy(csArray[2].cName, "John");
 	//csArray[2].cID = "a213 153 231 17 \r\n";
 	//csArray[2].cName = "John";
 	csArray[2].cAge = 32;
 	csArray[2].cBal = 40000;
 
-	strcpy(csArray[3].cID, "a211 153 561 17 \r\n");
+	strcpy(csArray[3].cID, "a211 153 561 17E");
 	strcpy(csArray[3].cName, "Jane");
 	//csArray[3].cID = "a211 153 561 17 \r\n";
 	//csArray[3].cName = "Jane";
 	csArray[3].cAge = 28;
 	csArray[3].cBal = 20000;
 
-	strcpy(csArray[4].cID, "a204 153 231 17 \r\n");
+	strcpy(csArray[4].cID, "a204 153 231 17E");
 	strcpy(csArray[4].cName, "Mary");
 	//csArray[4].cID = "a204 153 231 17 \r\n";
 	//csArray[4].cName = "Mary";
