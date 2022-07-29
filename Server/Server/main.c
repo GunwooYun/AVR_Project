@@ -78,6 +78,7 @@ int main(void)
     while (1) 
     {
 		cardIdx = 0;
+		//memset(cardNum, 0, sizeof(cardNum));
 		while(1){
 			cardToken = UART0_receive();			
 			cardNum[cardIdx++] = cardToken;
@@ -107,6 +108,7 @@ int main(void)
 				}
 				sendInfo(cusInfoStr,UART); // 고객정보 UART 전송
 				sendInfo(cusInfoBle,BLUETOOTH); // 고객정보 블루투스 전송
+				//sendInfo(cusInfoStr,BLUETOOTH); // Test
 				
 				free(cusInfoStr);
 				free(cusInfoBle);
@@ -115,10 +117,12 @@ int main(void)
 
 		/* 상품 정보 조회 및 전송 */
 		else if(cardNum[0] == 'c'){
+			UART1_transmit('O');
 			if(csIndex < 0){
 				UART0_transmit('X');
 				continue;
 			}
+			
 			int pIdx = cardNum[1]-'0';
 			char* proInfoStr = getProInfo(pIdx);
 			if(proInfoStr == NULL){
@@ -220,7 +224,7 @@ char* getCusInfo(uint8_t index)
 		// failed malloc
 		return NULL;
 	}
-	sprintf(pCusInfo, "b %s %d %u\n", csArray[index].cName, csArray[index].cAge, csArray[index].cBal);
+	sprintf(pCusInfo, "b %s %d %u", csArray[index].cName, csArray[index].cAge, csArray[index].cBal);
 	return pCusInfo;
 }
 char* getBleInfo(uint8_t index)
