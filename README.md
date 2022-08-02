@@ -11,10 +11,14 @@ RFID 모듈로 고객카드를 인식, 카드번호와 상품정보를 서버로
 * SERVER : 고객, 상품 관리 및 구매 처리
 * Client : 고객카드 태그 및 상품 구입
       
-      
 구성도
 ---------
-![mechanism](/Readme_src/mechanism.png)   
+![structure](/Readme_src/structure.png)   
+    
+    
+플로우차트
+---------
+![flowchart](/Readme_src/flow.png)
     
     
 회로도
